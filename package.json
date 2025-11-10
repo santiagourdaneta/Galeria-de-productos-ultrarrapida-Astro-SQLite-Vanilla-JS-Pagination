@@ -1,0 +1,29 @@
+{
+  "name": "mi-tienda-rapida",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "start": "astro preview --host 0.0.0.0",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:cov": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.5.0",
+    "@picocss/pico": "^2.1.1",
+    "astro": "^5.15.4",
+    "better-sqlite3": "^12.4.1",
+    "express-rate-limit": "^8.2.1",
+    "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@vitest/coverage-v8": "^4.0.8",
+    "nodemon": "^3.1.10",
+    "vitest": "^4.0.8"
+  }
+}

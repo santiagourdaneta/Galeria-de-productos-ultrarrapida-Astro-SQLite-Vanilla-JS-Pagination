@@ -1,0 +1,41 @@
+---
+// Importamos el estilo CSS (si no lo hiciste ya)
+import '../styles/global.css';
+
+// 💡 1. DEFINIMOS LAS PROPIEDADES (PROPS) QUE LA PÁGINA DEBE ENVIAR:
+const { 
+    title = 'Mi Sitio Astro', // Valores por defecto por si no se envían
+    description = 'Un sitio web rápido y ligero.',
+    ogTitle,
+    ogDescription,
+    ogImage
+} = Astro.props; 
+
+---
+
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <title>{title}</title>
+
+        <meta name="description" content={description} />
+        
+        <meta name="keywords" content="astro, sqlite, pico css, ssr, rapida" />
+
+        <meta property="og:title" content={ogTitle || title} />
+        <meta property="og:description" content={ogDescription || description} />
+        <meta property="og:image" content={ogImage || '/default-og.jpg'} />
+        <meta property="og:url" content={Astro.url} />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={ogTitle || title} />
+        <meta name="twitter:description" content={ogDescription || description} />
+        <meta name="twitter:image" content={ogImage || '/default-og.jpg'} />
+        
+        </head>
+    <body>
+        <slot />
+    </body>
+</html>

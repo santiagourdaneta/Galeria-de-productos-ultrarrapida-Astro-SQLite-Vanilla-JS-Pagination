@@ -1,0 +1,325 @@
+---
+// --- BLOQUE DE CÓDIGO (EJECUTADO EN EL SERVIDOR - SSR) ---
+import Layout from '../layouts/Layout.astro';
+import Database from 'better-sqlite3';
+
+// 1. Configuramos la paginación y el límite
+const ITEMS_PER_PAGE = 10;
+const INITIAL_PAGE = 1;
+
+// Conectamos a la DB para la carga inicial (SSR)
+const db = new Database('db/database.db', { readonly: true });
+let productos = [];
+let totalProducts = 0;
+
+try {
+    // Obtenemos el total para calcular el número total de páginas
+    totalProducts = db.prepare('SELECT COUNT(id) AS count FROM productos').get().count;
+    
+    // Obtenemos solo los primeros 10 para la carga inicial (SSR)
+    const offset = (INITIAL_PAGE - 1) * ITEMS_PER_PAGE;
+    const query = `SELECT id, nombre, precio FROM productos LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}`;
+    productos = db.prepare(query).all();
+} catch (e) {
+    console.error("Error al cargar productos iniciales:", e);
+} finally {
+    db.close();
+}
+
+// 🎨 Meta Tags y cálculos
+const title = "Mi Tienda Súper Rápida";
+const description = "La tienda más ligera con paginación instantánea para equipos viejos.";
+const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
+
+---
+<Layout title={title} description={description}>
+    <main class="container">
+        <div id="app-data" 
+             data-total-products={totalProducts} 
+             data-items-per-page={ITEMS_PER_PAGE}
+             data-total-pages={totalPages}>
+        </div>
+
+        <hgroup>
+            <h1>🚀 Galería Rápida de Productos</h1>
+            <p>Mostrando {ITEMS_PER_PAGE} tarjetas por página. Total: {totalProducts.toLocaleString()}</p>
+        </hgroup>
+        
+        <form id="search-form">
+            <input 
+                type="search" 
+                id="search-input" 
+                name="q" 
+                placeholder="Buscar productos..." 
+                maxlength="100" 
+                aria-label="Buscar productos"
+                autocomplete="off"
+            >
+        </form>
+
+        <div class="grid" id="productos-list">
+            {productos.map(p => (
+    <article key={p.id}>
+        <h3>{p.nombre}</h3>
+        <p>Precio: ${p.precio.toFixed(2)}</p>
+        <footer>
+            <a href="#detail" role="button" class="detail-button" data-product-id={p.id}>Ver Detalle</a>
+        </footer>
+    </article>
+))}
+        </div>
+
+        <nav id="pagination-controls" aria-label="Paginación de productos">
+            <ul class="pagination" id="page-number-list">
+                </ul>
+        </nav>
+        
+        <p class="text-center" id="status-message">
+    Página {INITIAL_PAGE} de {totalPages}.
+</p>
+
+    </main>
+
+    <script>
+        // --- Variables DOM ---
+        const input = document.getElementById('search-input');
+        const list = document.getElementById('productos-list');
+        const pageList = document.getElementById('page-number-list');
+        const statusMessage = document.getElementById('status-message');
+        
+        // --- Variables de Estado (Obtenidas del bloque SSR) ---
+        const appData = document.getElementById('app-data');
+        const ITEMS_PER_PAGE = parseInt(appData.dataset.itemsPerPage);
+        const totalProducts = parseInt(appData.dataset.totalProducts);
+        const totalPages = parseInt(appData.dataset.totalPages);
+        
+        let currentPage = 1;
+        let isSearching = false;
+
+        // --- Variables DOM para el modal ---
+		const modal = document.getElementById('product-detail-modal');
+		const modalTitle = document.getElementById('modal-title');
+		const modalContent = document.getElementById('modal-content'); 
+
+        /** Dibuja la lista de tarjetas en la galería */
+       function renderProducts(data) {
+
+
+    list.innerHTML = '';
+    
+    if (data.length === 0) {
+        list.innerHTML = '<p>No se encontraron productos.</p>';
+        return;
+    }
+
+        
+       data.forEach(p => {
+        const article = document.createElement('article');
+        
+        article.innerHTML = `
+            <h3>${p.nombre}</h3>
+            <p>Precio: $${p.precio.toFixed(2)}</p>
+            <footer>
+                <a href="#detail" 
+                   role="button" 
+                   class="detail-button" 
+                   data-product-id="${p.id}"> 
+                    Ver Detalle
+                </a>
+            </footer>
+        `;
+        list.appendChild(article);
+    });
+}
+        /** 4. Dibuja el contenido final del producto en el modal */
+function renderProductDetail(product) {
+    modalTitle.textContent = product.nombre;
+    
+    // Contenido UI/UX mejorado
+    modalContent.innerHTML = `
+        <div class="grid">
+            <div>
+                <h3>Precio: <mark>$${product.precio.toFixed(2)}</mark></h3>
+                <p><strong>Descripción:</strong></p>
+                <p>${product.descripcion || 'No hay descripción disponible.'}</p>
+                
+                <p><strong>Detalles:</strong></p>
+                <ul>
+                    <li>ID Único: <code>${product.id}</code></li>
+                    <li>Stock: **Alto** (Simulado)</li>
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    // Abrimos la ventana mágica
+    modal.setAttribute('open', '');
+}
+
+/** 5. Llama a la API para obtener los detalles y mostrar el modal */
+async function fetchProductDetail(id) {
+    // 1. Mostrar estado de carga (UX)
+    modalTitle.textContent = "Cargando...";
+    modalContent.innerHTML = `<p aria-busy="true">Obteniendo detalles del producto ${id}...</p>`;
+    modal.setAttribute('open', ''); // Abrir el modal inmediatamente
+
+    try {
+        const response = await fetch(`/api/productos/${id}`);
+        const product = await response.json();
+
+        if (response.status !== 200) {
+            modalTitle.textContent = "Error";
+            modalContent.innerHTML = `<p>⚠️ No se pudo cargar el producto: ${product.error || 'Error desconocido'}</p>`;
+            return;
+        }
+
+        // 2. Si todo va bien, mostramos los detalles
+        renderProductDetail(product);
+
+    } catch (error) {
+        modalTitle.textContent = "Error de Conexión";
+        modalContent.innerHTML = `<p>❌ No se pudo conectar al servidor para obtener detalles.</p>`;
+        console.error(error);
+    }
+}
+
+// --- Event Listener para todos los botones de la galería ---
+window.addEventListener('click', (e) => {
+    // 1. Identificar si el clic fue en un botón de detalle
+    const button = e.target.closest('.detail-button');
+    if (button) {
+        e.preventDefault(); // Evita que el navegador navegue a #detail
+        
+        const productId = button.dataset.productId;
+        if (productId) {
+            fetchProductDetail(productId);
+        }
+    }
+});     
+        // --- Paginación Numérica ---
+        function renderPageNumbers() {
+            pageList.innerHTML = '';
+            
+            // Si estamos buscando o hay 0 productos, no mostramos números.
+            if (isSearching || totalPages <= 1) return;
+            
+            // Botón Anterior
+            const prevLi = document.createElement('li');
+            prevLi.innerHTML = `<button role="link" class="secondary" ${currentPage === 1 ? 'disabled' : ''}>« Anterior</button>`;
+            prevLi.querySelector('button').addEventListener('click', () => {
+                if (currentPage > 1) fetchProducts(input.value, currentPage - 1);
+            });
+            pageList.appendChild(prevLi);
+
+            // Botones Numéricos (Mostramos un rango de 7 botones alrededor de la página actual)
+            const maxButtons = 7;
+            let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+            let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+            if (endPage - startPage + 1 < maxButtons) {
+                startPage = Math.max(1, endPage - maxButtons + 1);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const li = document.createElement('li');
+                const buttonClass = i === currentPage ? '' : 'secondary';
+                li.innerHTML = `<button role="link" class="${buttonClass}" data-page="${i}">${i}</button>`;
+                li.querySelector('button').addEventListener('click', (e) => {
+                    fetchProducts(input.value, parseInt(e.target.dataset.page));
+                });
+                pageList.appendChild(li);
+            }
+
+            // Botón Siguiente
+            const nextLi = document.createElement('li');
+            nextLi.innerHTML = `<button role="link" class="secondary" ${currentPage === totalPages ? 'disabled' : ''}>Siguiente »</button>`;
+            nextLi.querySelector('button').addEventListener('click', () => {
+                if (currentPage < totalPages) fetchProducts(input.value, currentPage + 1);
+            });
+            pageList.appendChild(nextLi);
+        }
+        
+        /** Actualiza el estado de los botones y mensajes */
+        function updatePaginationControls(dataLength) {
+            // Si estamos buscando, no conocemos el total real (la API no lo devuelve),
+            // así que desactivamos los controles numéricos y solo mostramos el estado.
+            isSearching ? pageList.style.display = 'none' : pageList.style.display = 'flex';
+
+            renderPageNumbers();
+            
+            // Mensaje de estado
+            if (isSearching) {
+                 statusMessage.textContent = `Búsqueda en curso. Resultados por página: ${dataLength}.`;
+            } else {
+                 statusMessage.textContent = `Página ${currentPage} de ${totalPages}.`;
+            }
+        }
+
+        /** 💾 Llama a la API con los parámetros de búsqueda y paginación */
+        async function fetchProducts(query = '', page = 1) {
+            currentPage = page;
+            isSearching = query !== '';
+
+            const offset = (page - 1) * ITEMS_PER_PAGE;
+            const url = `/api/productos?q=${query}&limit=${ITEMS_PER_PAGE}&offset=${offset}`;
+
+            statusMessage.textContent = 'Cargando...';
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (response.status === 429) {
+                    statusMessage.textContent = `⚠️ ${data.error}`;
+                    renderProducts([]);
+                    return;
+                }
+                if (response.status !== 200) {
+                    throw new Error(data.error || 'Error desconocido.');
+                }
+
+                renderProducts(data);
+                updatePaginationControls(data.length);
+                window.scrollTo({ top: 0, behavior: 'smooth' }); 
+
+            } catch (error) {
+                console.error('Error al cargar productos:', error);
+                statusMessage.textContent = 'Hubo un error al obtener los datos. Revisa la consola.';
+                renderProducts([]);
+            }
+        }
+
+        // --- Event Listeners ---
+
+        input.addEventListener('input', () => {
+            const safeQuery = input.value.substring(0, 100); 
+            fetchProducts(safeQuery, 1); 
+        });
+
+
+        // Aseguramos que la paginación inicial se renderice correctamente después del SSR
+        window.addEventListener('load', () => {
+            renderPageNumbers();
+        });
+
+    </script>
+
+    <dialog id="product-detail-modal">
+    <article>
+      <header>
+            <a href="#close" 
+               aria-label="Cerrar" 
+               class="close"
+               onclick="document.getElementById('product-detail-modal').removeAttribute('open'); return false;">
+            </a>
+            <h3 id="modal-title">Cargando Producto...</h3>
+        </header>
+        <div id="modal-content">
+            <p aria-busy="true">Cargando detalles...</p>
+        </div>
+        
+        
+    </article>
+</dialog>
+
+</Layout>
