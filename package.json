@@ -15,7 +15,7 @@
   "dependencies": {
     "@astrojs/node": "^9.5.0",
     "@picocss/pico": "^2.1.1",
-    "astro": "^5.15.4",
+    "astro": "^5.15.6",
     "better-sqlite3": "^12.4.1",
     "express-rate-limit": "^8.2.1",
     "node-cache": "^5.1.2"
